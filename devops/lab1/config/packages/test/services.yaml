@@ -1,0 +1,19 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+        
+    test.nbp_client:
+        alias: App\Service\NbpClient
+        public: true
+        
+    test.cantor_pricing:
+        alias: App\Service\CantorPricingService  
+        public: true
+        
+    App\Service\NbpClient:
+        public: true
+        
+    App\Service\CantorPricingService:
+        public: true

@@ -1,0 +1,78 @@
+services:
+  app:
+    build:
+      target: development
+    environment:
+      - APP_ENV=dev
+      - APP_DEBUG=1
+      - XDEBUG_MODE=debug
+    volumes:
+      - ./:/var/www/html:cached
+      - vendor_cache:/var/www/html/vendor
+      - var_cache:/var/www/html/var
+      - node_modules_cache:/var/www/html/node_modules
+    command: >
+      bash -c "
+        composer install &&
+        php bin/console cache:clear &&
+        apache2-foreground
+      "
+
+  db:
+    environment:
+      POSTGRES_DB: recruitment_db_dev
+    volumes:
+      - db_dev_data:/var/lib/postgresql/data
+
+  # Hot reload dla frontend
+  webpack:
+    image: node:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-recruitment}-webpack
+    working_dir: /app
+    volumes:
+      - ./:/app:cached
+      - node_modules_cache:/app/node_modules
+    command: >
+      sh -c "
+        npm install &&
+        npm run watch
+      "
+    networks:
+      - app-network
+
+  # Test runner
+  test:
+    build:
+      context: .
+      target: development
+    container_name: ${COMPOSE_PROJECT_NAME:-recruitment}-test
+    environment:
+      - APP_ENV=test
+      - DATABASE_URL=${TEST_DATABASE_URL}
+    volumes:
+      - ./:/var/www/html:cached
+    depends_on:
+      - db-test
+    networks:
+      - app-network
+    profiles:
+      - testing
+
+  db-test:
+    image: postgres:15-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-recruitment}-db-test
+    environment:
+      POSTGRES_DB: recruitment_db_test
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - db_test_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    profiles:
+      - testing
+
+volumes:
+  db_dev_data:
+  db_test_data:
+  node_modules_cache:
