@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import './App.css'
+import './App.scss'
 
 const API_URL = 'https://lab1-backend.azurewebsites.net';
 
@@ -46,24 +46,24 @@ function App() {
   const performCalculation = async () => {
     const n1 = parseFloat(num1)
     const n2 = parseFloat(display)
-    
+
     try {
       const response = await fetch(`${API_URL}/calculate.php`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ num1: n1, num2: n2, operation })
       })
-      
+
       const data = await response.json()
-      
+
       const historyEntry = {
         expression: `${n1} ${operation} ${n2}`,
         result: data.result,
         timestamp: new Date().toLocaleString('pl-PL')
       }
-      
+
       await saveToHistory(historyEntry)
-      
+
       return data.result
     } catch (error) {
       console.error('Error:', error)
@@ -104,7 +104,7 @@ function App() {
 
   const handleOperationClick = (op) => {
     const inputValue = parseFloat(display)
-    
+
     if (num1 === '') {
       setNum1(inputValue)
     } else if (operation) {
@@ -112,7 +112,7 @@ function App() {
       setDisplay(String(result))
       setNum1(result)
     }
-    
+
     setWaitingForSecondNumber(true)
     setOperation(op)
   }
@@ -145,27 +145,27 @@ function App() {
     <div className="calculator-container">
       <div className="calculator">
         <div className="display">{display}</div>
-        
+
         <div className="buttons">
           <button onClick={handleClear} className="span-2">C</button>
           <button onClick={() => handleOperationClick('/')} className="operator">/</button>
           <button onClick={() => handleOperationClick('*')} className="operator">*</button>
-          
+
           <button onClick={() => handleNumberClick(7)}>7</button>
           <button onClick={() => handleNumberClick(8)}>8</button>
           <button onClick={() => handleNumberClick(9)}>9</button>
           <button onClick={() => handleOperationClick('-')} className="operator">-</button>
-          
+
           <button onClick={() => handleNumberClick(4)}>4</button>
           <button onClick={() => handleNumberClick(5)}>5</button>
           <button onClick={() => handleNumberClick(6)}>6</button>
           <button onClick={() => handleOperationClick('+')} className="operator">+</button>
-          
+
           <button onClick={() => handleNumberClick(1)}>1</button>
           <button onClick={() => handleNumberClick(2)}>2</button>
           <button onClick={() => handleNumberClick(3)}>3</button>
           <button onClick={handleDecimalClick}>.</button>
-          
+
           <button onClick={() => handleNumberClick(0)} className="span-2">0</button>
           <button onClick={handleEquals} className="span-2 equals">=</button>
         </div>
@@ -181,8 +181,8 @@ function App() {
             <p className="empty-history">Brak historii</p>
           ) : (
             history.map((entry, index) => (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className="history-item"
                 onClick={() => loadFromHistory(entry.expression, entry.result)}
               >
