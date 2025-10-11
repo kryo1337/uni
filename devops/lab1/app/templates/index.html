@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counter App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Counter App</h1>
+        <div class="counter-display">
+            <span id="counter-value">0</span>
+        </div>
+        <button id="increment-btn" class="increment-button">+</button>
+    </div>
+
+    <script>
+        const counterValue = document.getElementById('counter-value');
+        const incrementBtn = document.getElementById('increment-btn');
+
+        async function loadCounter() {
+            try {
+                const response = await fetch('/get-count');
+                const data = await response.json();
+                counterValue.textContent = data.count;
+            } catch (error) {
+                console.error('Error loading counter:', error);
+            }
+        }
+
+        async function incrementCounter() {
+            incrementBtn.disabled = true;
+
+            try {
+                const response = await fetch('/increment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    counterValue.textContent = data.count;
+                } else {
+                    console.error('Error:', data.error);
+                }
+            } catch (error) {
+                console.error('Network error:', error);
+            } finally {
+                incrementBtn.disabled = false;
+            }
+        }
+
+        incrementBtn.addEventListener('click', incrementCounter);
+        
+        loadCounter();
+    </script>
+</body>
+</html>

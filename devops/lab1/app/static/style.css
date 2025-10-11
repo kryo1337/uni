@@ -1,0 +1,64 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: white;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.container {
+    background: white;
+    padding: 2rem;
+    border: 2px solid black;
+    text-align: center;
+    max-width: 300px;
+    width: 90%;
+}
+
+h1 {
+    color: black;
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+}
+
+.counter-display {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: white;
+    border: 1px solid black;
+}
+
+#counter-value {
+    font-size: 3rem;
+    font-weight: bold;
+    color: black;
+    display: block;
+}
+
+.increment-button {
+    background: black;
+    color: white;
+    border: 1px solid black;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    cursor: pointer;
+    margin: 1rem 0;
+}
+
+.increment-button:hover {
+    background: white;
+    color: black;
+}
+
+.increment-button:disabled {
+    background: gray;
+    cursor: not-allowed;
+}
+

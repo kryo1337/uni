@@ -1,14 +1,24 @@
 services:
   app:
-    build:
-      target: production
+    build: .
+    container_name: counter-app-prod
     environment:
-      - APP_ENV=prod
-      - APP_DEBUG=0
-    volumes:
-      - var_prod_cache:/var/www/html/var
+      - APP_ENV=production
+      - FLASK_DEBUG=0
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=counterdb_prod
+      - DB_USER=counteruser_prod
+      - DB_PASSWORD=counterpass_prod
+    ports:
+      - "80:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - counter-network
+    restart: always
     deploy:
-      replicas: 2
       resources:
         limits:
           memory: 512M
@@ -16,10 +26,22 @@ services:
           memory: 256M
 
   db:
+    image: postgres:15-alpine
+    container_name: counter-db-prod
     environment:
-      POSTGRES_DB: recruitment_db_prod
+      - POSTGRES_DB=counterdb_prod
+      - POSTGRES_USER=counteruser_prod
+      - POSTGRES_PASSWORD=counterpass_prod
     volumes:
-      - db_prod_data:/var/lib/postgresql/data
+      - postgres_prod_data:/var/lib/postgresql/data
+    networks:
+      - counter-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U counteruser_prod -d counterdb_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
     deploy:
       resources:
         limits:
@@ -27,19 +49,10 @@ services:
         reservations:
           memory: 512M
 
-  # Monitoring
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: ${COMPOSE_PROJECT_NAME:-recruitment}-prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    networks:
-      - app-network
-    profiles:
-      - monitoring
-
 volumes:
-  db_prod_data:
-  var_prod_cache:
+  postgres_prod_data:
+    driver: local
+
+networks:
+  counter-network:
+    driver: bridge

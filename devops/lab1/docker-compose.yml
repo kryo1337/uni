@@ -1,66 +1,46 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: ${DOCKER_TARGET:-development}
-    container_name: ${COMPOSE_PROJECT_NAME:-recruitment}-app
-    restart: unless-stopped
-    ports:
-      - "${APP_PORT:-8080}:80"
+    build: .
+    container_name: counter-app
     environment:
-      - APP_ENV=${APP_ENV:-dev}
-      - APP_SECRET=${APP_SECRET}
-      - DATABASE_URL=${DATABASE_URL}
-    volumes:
-      - ./:/var/www/html
-      - vendor_cache:/var/www/html/vendor
-      - var_cache:/var/www/html/var
+      - APP_ENV=${APP_ENV:-development}
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-counterdb}
+      - DB_USER=${DB_USER:-counteruser}
+      - DB_PASSWORD=${DB_PASSWORD:-counterpass}
+    ports:
+      - "${APP_PORT:-5000}:5000"
     depends_on:
       db:
         condition: service_healthy
     networks:
-      - app-network
+      - counter-network
+    restart: unless-stopped
 
   db:
     image: postgres:15-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-recruitment}-db
-    restart: unless-stopped
+    container_name: counter-db
     environment:
-      POSTGRES_DB: ${DB_NAME:-recruitment_db}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      - POSTGRES_DB=${DB_NAME:-counterdb}
+      - POSTGRES_USER=${DB_USER:-counteruser}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-counterpass}
     volumes:
-      - db_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "${DB_PORT:-5432}:5432"
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - counter-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-counteruser} -d ${DB_NAME:-counterdb}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - app-network
-
-  adminer:
-    image: adminer:latest
-    container_name: ${COMPOSE_PROJECT_NAME:-recruitment}-adminer
     restart: unless-stopped
-    ports:
-      - "${ADMINER_PORT:-8081}:8080"
-    environment:
-      ADMINER_DEFAULT_SERVER: db
-    depends_on:
-      - db
-    networks:
-      - app-network
 
 volumes:
-  vendor_cache:
-  var_cache:
-  db_data:
+  postgres_data:
+    driver: local
 
 networks:
-  app-network:
+  counter-network:
     driver: bridge

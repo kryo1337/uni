@@ -1,79 +1,38 @@
-FROM node:16-alpine AS frontend-builder
+FROM python:3.11-slim as builder
 
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY assets/ ./assets/
-COPY webpack.config.js ./
-RUN npm run build
 
-FROM php:8.2-apache AS base
-
-# Zainstalowanie podstawowych zależności
 RUN apt-get update && apt-get install -y \
-  git \
-  curl \
-  zip \
-  unzip \
-  libzip-dev \
-  libpq-dev \
-  && docker-php-ext-install \
-  zip \
-  pdo \
-  pdo_pgsql \
-  && apt-get clean \
-  && rm -rf /var/lib/apt/lists/*
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Konfiguracja Apache
-COPY 000-default.conf /etc/apache2/sites-available/
-RUN a2enmod rewrite
+FROM python:3.11-slim
 
-WORKDIR /var/www/html
+WORKDIR /app
 
-# Development stage
-FROM base AS development
+RUN apt-get update && apt-get install -y \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
 
-# Dodanie narzędzi deweloperskich
-RUN pecl install xdebug \
-  && docker-php-ext-enable xdebug
+COPY --from=builder /root/.local /root/.local
 
-# Konfiguracja Xdebug
-RUN echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-  && echo "xdebug.start_with_request=yes" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-  && echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+ENV PATH=/root/.local/bin:$PATH
 
-ENV APP_ENV=dev
-ENV XDEBUG_MODE=debug
+COPY app/ .
 
-EXPOSE 80
+COPY tests/ tests/
 
-# Production stage
-FROM base AS production
+ENV APP_ENV=production
+ENV FLASK_APP=app.py
+ENV FLASK_DEBUG=0
 
-# Kopiowanie zależności
-COPY composer.json composer.lock symfony.lock ./
-RUN composer install --no-dev --optimize-autoloader --no-scripts
+EXPOSE 5000
 
-# Kopiowanie kodu źródłowego
-COPY . .
-COPY --from=frontend-builder /app/public/build/ ./public/build/
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:5000/health')" || exit 1
 
-# Finalnie composer dla production
-RUN composer dump-autoload --optimize --classmap-authoritative
-
-# Ustawienia dla produkcji
-RUN chown -R www-data:www-data /var/www/html \
-  && chmod -R 755 /var/www/html
-
-ENV APP_ENV=prod
-
-USER www-data
-
-EXPOSE 80
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost/health || exit 1
+CMD ["python", "app.py"]
