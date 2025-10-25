@@ -1,3 +1,9 @@
 {
-    "history": []
+    "history": [
+        {
+            "expression": "5 + 3",
+            "result": 8,
+            "timestamp": "25.10.2025, 08:39:24"
+        }
+    ]
 }

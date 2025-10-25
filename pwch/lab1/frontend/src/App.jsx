@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import './App.scss'
 
-const API_URL = 'https://lab1-backend.azurewebsites.net';
+const API_URL = import.meta.env.VITE_API_URL || 'https://lab1-backend.azurewebsites.net';
 
 function App() {
   const [display, setDisplay] = useState('0')
@@ -102,13 +102,13 @@ function App() {
     }
   }
 
-  const handleOperationClick = (op) => {
+  const handleOperationClick = async (op) => {
     const inputValue = parseFloat(display)
 
     if (num1 === '') {
       setNum1(inputValue)
     } else if (operation) {
-      const result = performCalculation()
+      const result = await performCalculation()
       setDisplay(String(result))
       setNum1(result)
     }

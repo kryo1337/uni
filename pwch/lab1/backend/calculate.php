@@ -1,4 +1,8 @@
 <?php
+require_once __DIR__ . '/vendor/autoload.php';
+
+use App\Calculator;
+
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
@@ -20,18 +24,29 @@ $num1 = floatval($data['num1']);
 $num2 = floatval($data['num2']);
 $operation = $data['operation'];
 
-$result = match($operation) {
-    '+' => $num1 + $num2,
-    '-' => $num1 - $num2,
-    '*' => $num1 * $num2,
-    '/' => $num2 != 0 ? $num1 / $num2 : 'Error: Division by zero',
-    default => 'Error: Invalid operation'
-};
+$calculator = new Calculator();
 
-echo json_encode([
-    'result' => $result,
-    'num1' => $num1,
-    'num2' => $num2,
-    'operation' => $operation
-]);
+try {
+    $result = $calculator->calculate($num1, $num2, $operation);
+    echo json_encode([
+        'result' => $result,
+        'num1' => $num1,
+        'num2' => $num2,
+        'operation' => $operation
+    ]);
+} catch (\DivisionByZeroError $e) {
+    echo json_encode([
+        'result' => 'Error: Division by zero',
+        'num1' => $num1,
+        'num2' => $num2,
+        'operation' => $operation
+    ]);
+} catch (\InvalidArgumentException $e) {
+    echo json_encode([
+        'result' => 'Error: Invalid operation',
+        'num1' => $num1,
+        'num2' => $num2,
+        'operation' => $operation
+    ]);
+}
 ?>

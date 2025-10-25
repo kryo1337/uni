@@ -1,1 +1,15 @@
 backend/backend.zip
+
+# Dependencies
+node_modules/
+backend/vendor/
+
+# Test artifacts
+.phpunit.cache/
+playwright-report/
+test-results/
+coverage/
+
+# Environment
+.env
+!.env.production

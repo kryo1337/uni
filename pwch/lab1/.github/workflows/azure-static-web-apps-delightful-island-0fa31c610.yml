@@ -25,10 +25,31 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install Dependencies
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          tools: composer
+
+      - name: Install Backend Dependencies
+        run: |
+          cd backend
+          composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          vendor/bin/phpunit
+
+      - name: Install Frontend Dependencies
         run: |
           cd frontend
           npm ci
+
+      - name: Run Frontend Tests
+        run: |
+          cd frontend
+          npm test
 
       - name: Transpile SCSS to CSS
         run: |
@@ -40,6 +61,22 @@ jobs:
         run: |
           cd frontend
           npm run build
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E Tests
+        run: |
+          npm install
+          npx playwright test
+
+      - name: Upload Playwright Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
 
       - name: Deploy to Azure Static Web Apps
         id: builddeploy
