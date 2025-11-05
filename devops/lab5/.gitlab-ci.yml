@@ -1,0 +1,233 @@
+stages:
+  - checkout
+  - build
+  - test
+  - quality
+  - security
+  - docker_build
+  - deploy_test
+  - deploy_prod
+
+variables:
+  PYTHON_VERSION: '3.9'
+  VENV_DIR: 'venv'
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  DOCKER_IMAGE: "task-manager-app"
+  TEST_ENV_URL: "http://test-app.example.com"
+  PROD_ENV_URL: "http://app.example.com"
+  SLACK_WEBHOOK: $SLACK_WEBHOOK_URL
+
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
+# ============ REQUIREMENT 1: CHECKOUT ============
+checkout_code:
+  stage: checkout
+  script:
+    - echo "========== ETAP 1: Pobranie kodu źródłowego z repozytorium =========="
+    - echo "Branch: $CI_COMMIT_REF_NAME"
+    - echo "Commit SHA: $CI_COMMIT_SHA"
+    - echo "Commit Message: $CI_COMMIT_MESSAGE"
+    - git log --oneline -5
+  only:
+    - merge_requests
+    - main
+    - develop
+    - /^feature\/.*$/
+    - /^release\/.*$/
+  tags:
+    - docker
+
+# ============ REQUIREMENT 2: BUILD ============
+setup_and_build:
+  stage: build
+  image: python:${PYTHON_VERSION}
+  script:
+    - echo "========== Przygotowanie środowiska =========="
+    - python3 --version
+    - pip install --upgrade pip setuptools wheel
+    - python3 -m venv ${VENV_DIR}
+    - source ${VENV_DIR}/bin/activate
+    - pip install -r requirements.txt
+    - echo "========== ETAP 2: Budowanie aplikacji =========="
+    - python3 -m py_compile app.py
+    - echo "✓ Kompilacja Pythona zakończona pomyślnie"
+  artifacts:
+    paths:
+      - ${VENV_DIR}/
+      - app.py
+    expire_in: 1 hour
+  only:
+    - merge_requests
+    - main
+    - develop
+    - /^feature\/.*$/
+  tags:
+    - docker
+
+# ============ REQUIREMENT 3: UNIT TESTS ============
+unit_tests:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  script:
+    - echo "========== ETAP 3: Uruchamianie testów jednostkowych =========="
+    - source ${VENV_DIR}/bin/activate
+    - pip install pytest pytest-cov pytest-html
+    - pytest tests/ -v --cov=. --cov-report=xml --cov-report=html \
+        --html=test-report.html --self-contained-html \
+        --junit-xml=test-results.xml
+    - echo "✓ Testy jednostkowe przeszły pomyślnie"
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    when: always
+    reports:
+      junit: test-results.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - test-report.html
+      - htmlcov/
+    expire_in: 30 days
+  only:
+    - merge_requests
+    - main
+    - develop
+    - /^feature\/.*$/
+  tags:
+    - docker
+
+# ============ REQUIREMENT 4 & 5: CODE QUALITY ============
+code_quality:
+  stage: quality
+  image: python:${PYTHON_VERSION}
+  script:
+    - echo "========== Analiza statyczna kodu (Linting) =========="
+    - source ${VENV_DIR}/bin/activate
+    - pip install flake8 pylint
+    - echo "Flake8 raport:"
+    - flake8 app.py --max-line-length=120 --count --statistics || true
+    - echo "Pylint raport:"
+    - pylint app.py --exit-zero || true
+    - echo "✓ Analiza kodu zakończona"
+  only:
+    - merge_requests
+    - main
+    - develop
+  allow_failure: true
+  tags:
+    - docker
+
+# ============ REQUIREMENT 5: SECURITY SCAN ============
+security_scan:
+  stage: security
+  image: python:${PYTHON_VERSION}
+  script:
+    - echo "========== Skanowanie bezpieczeństwa =========="
+    - source ${VENV_DIR}/bin/activate
+    - pip install bandit safety
+    - bandit -r . -f json -o bandit-report.json || true
+    - safety check --json > safety-report.json || true
+    - echo "✓ Skanowanie bezpieczeństwa zakończone"
+  artifacts:
+    paths:
+      - bandit-report.json
+      - safety-report.json
+    expire_in: 30 days
+  only:
+    - main
+    - develop
+  allow_failure: true
+  tags:
+    - docker
+
+# ============ REQUIREMENT 3: DOCKER BUILD ============
+build_docker:
+  stage: docker_build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - echo "========== Budowanie obrazu Docker =========="
+    - docker build -t ${DOCKER_IMAGE}:${CI_COMMIT_SHA} .
+    - docker tag ${DOCKER_IMAGE}:${CI_COMMIT_SHA} ${DOCKER_IMAGE}:latest
+    - echo "✓ Obraz Docker zbudowany: ${DOCKER_IMAGE}:${CI_COMMIT_SHA}"
+  only:
+    - main
+    - /^release\/.*$/
+  tags:
+    - docker
+    - dind
+
+# ============ REQUIREMENT 3e: DEPLOY TEST ============
+deploy_test:
+  stage: deploy_test
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - echo "========== ETAP 4: Wdrożenie aplikacji do środowiska testowego =========="
+    - echo "Uruchamianie aplikacji w kontenerze..."
+    - docker run -d --name task-manager-test-${CI_PIPELINE_ID} \
+        -p 5001:5000 \
+        -e FLASK_ENV=test \
+        ${DOCKER_IMAGE}:latest
+    - sleep 5
+    - echo "Weryfikacja zdrowia aplikacji (Health Check)..."
+    - docker run --rm --network host curlimages/curl -f http://localhost:5001/health || exit 1
+    - echo "✓ Aplikacja wdrożona na środowisko testowe"
+    - echo "URL: $TEST_ENV_URL"
+  environment:
+    name: test
+    url: ${TEST_ENV_URL}
+  only:
+    - main
+    - develop
+  when: on_success
+  tags:
+    - docker
+    - dind
+
+# ============ REQUIREMENT 5c: DEPLOY PRODUCTION WITH MANUAL APPROVAL ============
+deploy_production:
+  stage: deploy_prod
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - echo "========== ZADANIE DODATKOWE: Wdrożenie do środowiska PRODUKCJI z ręczną aprobatą =========="
+    - echo "Uruchamianie aplikacji w kontenerze..."
+    - docker run -d --name task-manager-prod-${CI_PIPELINE_ID} \
+        -p 5000:5000 \
+        -e FLASK_ENV=production \
+        ${DOCKER_IMAGE}:latest
+    - sleep 5
+    - echo "Weryfikacja zdrowia aplikacji (Health Check)..."
+    - docker run --rm --network host curlimages/curl -f http://localhost:5000/health || exit 1
+    - echo "✓ Wdrożenie do PRODUKCJI zakończone pomyślnie"
+    - echo "URL: $PROD_ENV_URL"
+  environment:
+    name: production
+    url: ${PROD_ENV_URL}
+  when: manual
+  only:
+    - main
+    - /^release\/.*$/
+  tags:
+    - docker
+    - dind
+
+# ============ REQUIREMENT 4a: WEBHOOKS & NOTIFICATIONS ============
+.notify_slack_success: &notify_slack_success
+  - |
+    curl -X POST -H 'Content-type: application/json' \
+      --data "{\"text\":\"✓ GitLab Pipeline $CI_PIPELINE_ID ($CI_COMMIT_REF_NAME) SUCCESS\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*✓ Pipeline Success*\nProject: $CI_PROJECT_NAME\nBranch: $CI_COMMIT_REF_NAME\nCommit: $CI_COMMIT_SHORT_SHA\"}}]}" \
+      $SLACK_WEBHOOK || true
+
+.notify_slack_failure: &notify_slack_failure
+  - |
+    curl -X POST -H 'Content-type: application/json' \
+      --data "{\"text\":\"✗ GitLab Pipeline $CI_PIPELINE_ID ($CI_COMMIT_REF_NAME) FAILED\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*✗ Pipeline Failed*\nProject: $CI_PROJECT_NAME\nBranch: $CI_COMMIT_REF_NAME\nCommit: $CI_COMMIT_SHORT_SHA\"}}]}" \
+      $SLACK_WEBHOOK || true

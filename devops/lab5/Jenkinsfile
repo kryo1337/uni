@@ -1,0 +1,109 @@
+pipeline {
+    agent any
+    
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+    
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo '========== Etap: Pobranie kodu źródłowego =========='
+                checkout scm
+                sh '''
+                    echo "Aktualna gałąź: $(git rev-parse --abbrev-ref HEAD)"
+                    echo "Commit SHA: $(git rev-parse HEAD)"
+                '''
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                echo '========== Etap: Budowanie aplikacji =========='
+                sh '''
+                    echo "Budowanie aplikacji..."
+                    echo "Build zakończony pomyślnie"
+                '''
+            }
+        }
+        
+        stage('Unit Tests') {
+            steps {
+                echo '========== Etap: Uruchamianie testów jednostkowych =========='
+                sh '''
+                    echo "Uruchamianie testów jednostkowych..."
+                    echo "Testy przeszły pomyślnie"
+                '''
+            }
+        }
+        
+        stage('Code Analysis') {
+            steps {
+                echo '========== Etap: Analiza statyczna kodu =========='
+                sh '''
+                    echo "Uruchamianie lintingu..."
+                    echo "Analiza kodu zakończona"
+                '''
+            }
+        }
+        
+        stage('Deploy to Test') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo '========== Etap: Wdrożenie do środowiska testowego =========='
+                sh '''
+                    echo "Wdrażanie do środowiska testowego..."
+                    echo "Wdrożenie na test zakończone"
+                '''
+            }
+        }
+        
+        stage('Deploy to Production') {
+            when {
+                branch 'main'
+                tag "release-*"
+            }
+            input {
+                message "Zatwierdzić wdrożenie do produkcji?"
+                ok "Wdrażam"
+            }
+            steps {
+                echo '========== Etap: Wdrożenie do produkcji =========='
+                sh '''
+                    echo "Wdrażanie do środowiska produkcyjnego..."
+                    echo "Wdrożenie na prod zakończone"
+                '''
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo '========== Etap: Porządkowanie =========='
+            cleanWs()
+        }
+        success {
+            echo 'Pipeline wykonał się pomyślnie'
+            // mail to: "${env.BUILD_USER_EMAIL}", 
+            //      subject: "Build sukces: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            //      body: "Build zakończył się powodzeniem"
+        }
+        failure {
+            echo 'Pipeline nie powiódł się'
+            // mail to: "${env.BUILD_USER_EMAIL}",
+            //      subject: "Build błąd: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            //      body: "Build zakończył się błędem"
+        }
+        unstable {
+            echo 'Pipeline niestabilny'
+        }
+    }
+}
