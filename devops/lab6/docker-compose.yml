@@ -1,0 +1,26 @@
+services:
+  web:
+    build: .
+    container_name: lab6
+    ports:
+      - "1337:1337"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_HOST=db
+      - DATABASE_NAME=appdb
+      - DATABASE_USER=appuser
+      - DATABASE_PASSWORD=secret
+
+  db:
+    image: postgres:16
+    container_name: lab6_db
+    environment:
+      - POSTGRES_DB=appdb
+      - POSTGRES_USER=appuser
+      - POSTGRES_PASSWORD=secret
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
